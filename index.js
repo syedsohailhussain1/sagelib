@@ -13,7 +13,7 @@ async function runTest() {
 
   console.log("[2] Configuring the Composable DAG...");
   pipeline.useChunker(new SemanticChunker());
-  pipeline.useRetriever(new HybridRetriever({ rrf_k: 60 }));
+  pipeline.useRetriever(new HybridRetriever({ rrfK: 60 }));
 
   console.log("[3] Ingesting Mock Data into Embedded Storage...");
   try {
