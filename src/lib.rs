@@ -1,4 +1,5 @@
 #![deny(clippy::all)]
+#![allow(dead_code)]
 
 #[macro_use]
 extern crate napi_derive;
@@ -93,19 +94,17 @@ impl Pipeline {
   }
 
   #[napi]
-  pub fn use_chunker(&mut self, _chunker: &SemanticChunker) -> &Self {
+  pub fn use_chunker(&mut self, _chunker: &SemanticChunker) {
     self.has_chunker = true;
-    self
   }
 
   #[napi]
-  pub fn use_retriever(&mut self, _retriever: &HybridRetriever) -> &Self {
+  pub fn use_retriever(&mut self, _retriever: &HybridRetriever) {
     self.has_retriever = true;
-    self
   }
 
   #[napi]
-  pub async fn ingest(&self, glob_pattern: String) -> Result<()> {
+  pub fn ingest(&self, glob_pattern: String) -> Result<()> {
     if !self.has_chunker || !self.has_retriever {
       return Err(napi::Error::from_reason("Pipeline requires both a chunker and retriever before ingestion."));
     }
@@ -129,7 +128,7 @@ impl Pipeline {
   }
 
   #[napi]
-  pub async fn query(&self, query_str: String, options: QueryOptions) -> Result<Vec<String>> {
+  pub fn query(&self, query_str: String, options: QueryOptions) -> Result<Vec<String>> {
     let docs = self.documents.lock().unwrap();
 
     // The Governance Layer in action: Retrieval-Time Authorization
