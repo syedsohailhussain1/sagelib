@@ -1,3 +1,4 @@
 fn main() {
-  napi_build::setup();
+    #[cfg(feature = "node")]
+    napi_build::setup();
 }
