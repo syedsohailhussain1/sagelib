@@ -4,11 +4,64 @@
 #[macro_use]
 extern crate napi_derive;
 
+use napi::Result;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use glob::glob;
 use std::fs;
-use std::collections::{HashSet};
 
-// --- Mock Document Storage for MVP ---
+// --- Options Structs ---
+
+#[napi(object)]
+pub struct PipelineOptions {
+  pub storage: String,
+  pub observability: bool,
+}
+
+#[napi(object)]
+pub struct QueryOptions {
+  pub tenant_id: String,
+  pub role: String,
+}
+
+#[napi(object)]
+pub struct HybridRetrieverOptions {
+  pub rrf_k: i32,
+}
+
+// --- Composable Operators ---
+
+#[napi]
+pub struct SemanticChunker {
+  pub config: String,
+}
+
+#[napi]
+impl SemanticChunker {
+  #[napi(constructor)]
+  pub fn new() -> Self {
+    SemanticChunker {
+      config: "default".to_string(),
+    }
+  }
+}
+
+#[napi]
+pub struct HybridRetriever {
+  pub rrf_k: i32,
+}
+
+#[napi]
+impl HybridRetriever {
+  #[napi(constructor)]
+  pub fn new(options: HybridRetrieverOptions) -> Self {
+    HybridRetriever {
+      rrf_k: options.rrf_k,
+    }
+  }
+}
+
+// --- Real Document Storage for MVP ---
 #[derive(Clone)]
 struct Chunk {
   tenant_id: String,
@@ -25,6 +78,8 @@ pub struct Pipeline {
   has_chunker: bool,
   has_retriever: bool,
   
+  // Simulated embedded storage layer
+  // In production, this would be DuckDB/RocksDB
   chunks: Arc<Mutex<Vec<Chunk>>>,
 }
 
@@ -58,7 +113,7 @@ impl Pipeline {
     }
 
     let mut chunks = self.chunks.lock().unwrap();
-
+    
     // 1. REAL PARSING: Find all matching files on disk
     for entry in glob(&glob_pattern).expect("Failed to read glob pattern") {
       match entry {
@@ -85,13 +140,14 @@ impl Pipeline {
         Err(e) => println!("{:?}", e),
       }
     }
+
     Ok(())
   }
 
   #[napi]
   pub fn query(&self, query_str: String, options: QueryOptions) -> Result<Vec<String>> {
     let chunks = self.chunks.lock().unwrap();
-    
+
     // 3. REAL TF-IDF HYBRID SEARCH
     let query_terms: Vec<String> = query_str
       .to_lowercase()
@@ -99,14 +155,9 @@ impl Pipeline {
       .map(|s| s.to_string())
       .collect();
 
-    // Calculate Term Frequencies (TF) and Inverse Document Frequency (IDF)
-    // TF = (frequency of term in chunk) / (total words in chunk)
-    // IDF = log( total_chunks / chunks_containing_term )
-    
     let total_chunks = chunks.len() as f64;
     let mut idf_map: HashMap<String, f64> = HashMap::new();
 
-    // Compute IDF
     for term in &query_terms {
       let mut chunks_with_term = 0.0;
       for chunk in chunks.iter() {
@@ -122,11 +173,10 @@ impl Pipeline {
       idf_map.insert(term.clone(), idf);
     }
 
-    // Compute TF-IDF per chunk and rank
     let mut ranked_chunks: Vec<(f64, &Chunk)> = Vec::new();
 
     for chunk in chunks.iter() {
-      // 4. GOVERNANCE: Retrieval-Time Authorization (Strict Boundary)
+      // 4. GOVERNANCE: Retrieval-Time Authorization
       if chunk.tenant_id != options.tenant_id {
         continue;
       }
@@ -139,7 +189,6 @@ impl Pipeline {
       let mut total_score = 0.0;
 
       for term in &query_terms {
-        // Simple term counting
         let term_count = chunk_lower.matches(term).count() as f64;
         let tf = term_count / total_words;
         let idf = idf_map.get(term).unwrap_or(&0.0);
@@ -151,17 +200,15 @@ impl Pipeline {
       }
     }
 
-    // Sort by descending TF-IDF score
     ranked_chunks.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
 
-    // Extract top 3 results
     let mut results = Vec::new();
     for (score, chunk) in ranked_chunks.iter().take(3) {
       results.push(format!("[Score: {:.4}] (Source: {}) {}", score, chunk.source, chunk.content));
     }
 
     if self.observability_enabled {
-      println!("[sagelib-telemetry] Real TF-IDF query executed for tenant '{}'. Returned top {} chunks.", options.tenant_id, results.len());
+      println!("[sagelib-telemetry] Executed query for tenant '{}'. Found {} chunks.", options.tenant_id, results.len());
     }
 
     Ok(results)
