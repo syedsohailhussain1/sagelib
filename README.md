@@ -2,12 +2,6 @@
 
 **The Enterprise-Grade Compute Engine for Retrieval-Augmented Generation**
 
-<p align="center">
-  <a href="https://github.com/syedsohailhussain1/sagelib/actions"><img src="https://github.com/syedsohailhussain1/sagelib/workflows/Build%20Core/badge.svg" alt="Build Status"></a>
-  <a href="https://www.npmjs.com/package/sagelib"><img src="https://img.shields.io/npm/v/sagelib.svg" alt="npm version"></a>
-  <a href="https://pypi.org/project/sagelib"><img src="https://img.shields.io/pypi/v/sagelib.svg" alt="PyPI version"></a>
-</p>
-
 ---
 
 ## What is sagelib?
