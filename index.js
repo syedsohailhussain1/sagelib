@@ -15,9 +15,13 @@ async function runTest() {
   pipeline.useChunker(new SemanticChunker());
   pipeline.useRetriever(new HybridRetriever({ rrfK: 60 }));
 
-  console.log("[3] Ingesting Mock Data into Embedded Storage...");
+  console.log("[3] Ingesting Real Data into Embedded Storage...");
   try {
-    await pipeline.ingest('./enterprise_docs/**/*.pdf');
+    // We ingest real documents from the user's Downloads folder
+    const downloadsPath = "C:/Users/Sohail/Downloads/**/*.txt";
+    
+    await pipeline.ingest(downloadsPath, "org_123");
+    
     console.log("    -> Ingestion successful.\n");
   } catch (err) {
     console.error("    -> Ingestion failed:", err.message);
