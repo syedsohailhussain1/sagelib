@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node test.js",
     "benchmark": "node benchmark/run_benchmark.js",
+    "playground": "node playground/server.js",
     "build": "node ./node_modules/@napi-rs/cli/dist/cli.js build --platform --release",
     "build:debug": "node ./node_modules/@napi-rs/cli/dist/cli.js build --platform"
   },

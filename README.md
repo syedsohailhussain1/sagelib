@@ -52,7 +52,10 @@ npm install
 # Run automated test suite
 npm test
 
-# Run example demonstration
+# Launch visual interactive playground (localhost:3000)
+npm run playground
+
+# Run CLI demonstration
 node index.js
 ```
 
