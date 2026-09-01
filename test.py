@@ -1,3 +1,4 @@
+import os
 import sagelib
 
 print("Initializing Pipeline...")
@@ -11,8 +12,8 @@ pipeline.use_chunker(chunker)
 pipeline.use_retriever(retriever)
 
 print("Ingesting test files...")
-# Adjust glob pattern according to the user's Downloads path where docs live
-pipeline.ingest("C:/Users/Sohail/Downloads/*.txt", "test-tenant")
+fixtures_glob = os.path.join(os.path.dirname(__file__), "fixtures", "*.txt").replace("\\", "/")
+pipeline.ingest(fixtures_glob, "test-tenant")
 
 print("Executing query...")
 results = pipeline.query("machine learning", "test-tenant")

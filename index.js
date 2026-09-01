@@ -17,8 +17,8 @@ async function runTest() {
 
   console.log("[3] Ingesting Real Data into Embedded Storage...");
   try {
-    // We ingest real documents from the user's Downloads folder
-    const downloadsPath = "C:/Users/Sohail/Downloads/**/*.txt";
+    const path = require('node:path');
+    const downloadsPath = path.join(__dirname, "fixtures", "*.txt").replace(/\\/g, "/");
     
     await pipeline.ingest(downloadsPath, "org_123");
     

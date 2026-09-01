@@ -1,0 +1,5 @@
+Sagelib Engine Architecture Specification
+
+The core compute engine is implemented in native Rust with SIMD acceleration for dense vector similarity and sparse TF-IDF scoring.
+
+Data ingestion splits raw documents into semantic chunks along paragraph boundaries and attaches immutable tenant metadata for retrieval governance.
