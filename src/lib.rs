@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use glob::glob;
 
 // ==========================================
-// 🧠 Core Shared Engine
+// 🧠 Core Shared Engine with Inverted Index
 // ==========================================
 
 #[derive(Clone, Debug, PartialEq)]
@@ -12,6 +12,19 @@ pub struct Chunk {
     pub tenant_id: String,
     pub source: String,
     pub content: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct Posting {
+    pub chunk_idx: usize,
+    pub tf: f64,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct TenantIndex {
+    pub chunk_count: usize,
+    pub inverted_index: HashMap<String, Vec<Posting>>,
+    pub chunk_lengths: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +77,7 @@ pub struct CorePipeline {
     pub has_chunker: bool,
     pub has_retriever: bool,
     pub chunks: Arc<Mutex<Vec<Chunk>>>,
+    pub tenant_indexes: Arc<Mutex<HashMap<String, TenantIndex>>>,
 }
 
 impl CorePipeline {
@@ -74,6 +88,7 @@ impl CorePipeline {
             has_chunker: false,
             has_retriever: false,
             chunks: Arc::new(Mutex::new(Vec::new())),
+            tenant_indexes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -95,12 +110,55 @@ impl CorePipeline {
         let count = split_chunks.len();
 
         let mut chunks = self.chunks.lock().map_err(|e| e.to_string())?;
+        let mut indexes = self.tenant_indexes.lock().map_err(|e| e.to_string())?;
+        let tenant_index = indexes.entry(tenant_id.to_string()).or_default();
+
         for chunk_text in split_chunks {
+            let global_idx = chunks.len();
             chunks.push(Chunk {
                 tenant_id: tenant_id.to_string(),
                 source: source.to_string(),
-                content: chunk_text,
+                content: chunk_text.clone(),
             });
+
+            // Tokenize words and clean punctuation
+            let words: Vec<String> = chunk_text
+                .split_whitespace()
+                .map(|w| {
+                    w.chars()
+                        .filter(|c| c.is_alphanumeric())
+                        .collect::<String>()
+                        .to_lowercase()
+                })
+                .filter(|w| !w.is_empty())
+                .collect();
+
+            let total_words = words.len();
+            tenant_index.chunk_count += 1;
+            tenant_index.chunk_lengths.push(total_words);
+
+            if total_words == 0 {
+                continue;
+            }
+
+            // Calculate term frequencies
+            let mut term_counts: HashMap<String, usize> = HashMap::new();
+            for word in words {
+                *term_counts.entry(word).or_insert(0) += 1;
+            }
+
+            // Populate Inverted Index
+            for (term, term_count) in term_counts {
+                let tf = (term_count as f64) / (total_words as f64);
+                tenant_index
+                    .inverted_index
+                    .entry(term)
+                    .or_default()
+                    .push(Posting {
+                        chunk_idx: global_idx,
+                        tf,
+                    });
+            }
         }
 
         Ok(count)
@@ -135,80 +193,63 @@ impl CorePipeline {
     }
 
     pub fn query(&self, query_str: &str, tenant_id: &str) -> Result<Vec<String>, String> {
-        let chunks = self.chunks.lock().map_err(|e| e.to_string())?;
-
-        // Tokenize query terms
+        // Clean and tokenize query terms
         let query_terms: Vec<String> = query_str
-            .to_lowercase()
             .split_whitespace()
-            .map(|s| s.to_string())
+            .map(|w| {
+                w.chars()
+                    .filter(|c| c.is_alphanumeric())
+                    .collect::<String>()
+                    .to_lowercase()
+            })
+            .filter(|w| !w.is_empty())
             .collect();
 
         if query_terms.is_empty() {
             return Ok(Vec::new());
         }
 
-        // Count tenant-specific chunks for IDF calculation
-        let mut tenant_chunks: Vec<&Chunk> = Vec::new();
-        for chunk in chunks.iter() {
-            if chunk.tenant_id == tenant_id {
-                tenant_chunks.push(chunk);
+        let indexes = self.tenant_indexes.lock().map_err(|e| e.to_string())?;
+        let tenant_index = match indexes.get(tenant_id) {
+            Some(idx) if idx.chunk_count > 0 => idx,
+            _ => return Ok(Vec::new()),
+        };
+
+        let total_tenant_chunks = tenant_index.chunk_count as f64;
+        let mut chunk_scores: HashMap<usize, f64> = HashMap::new();
+
+        // Instantaneous Inverted Index lookup: O(1) hash table lookup per query term
+        for term in &query_terms {
+            if let Some(postings) = tenant_index.inverted_index.get(term) {
+                let df = postings.len() as f64;
+                let idf = (total_tenant_chunks / df).ln() + 1.0;
+                for posting in postings {
+                    *chunk_scores.entry(posting.chunk_idx).or_insert(0.0) += posting.tf * idf;
+                }
             }
         }
 
-        let total_tenant_chunks = tenant_chunks.len() as f64;
-        if total_tenant_chunks == 0.0 {
+        if chunk_scores.is_empty() {
             return Ok(Vec::new());
         }
 
-        let mut idf_map: HashMap<String, f64> = HashMap::new();
-        for term in &query_terms {
-            let mut chunks_with_term = 0.0;
-            for chunk in &tenant_chunks {
-                if chunk.content.to_lowercase().contains(term) {
-                    chunks_with_term += 1.0;
-                }
-            }
-            let idf = if chunks_with_term > 0.0 {
-                (total_tenant_chunks / chunks_with_term).ln() + 1.0
-            } else {
-                0.0
-            };
-            idf_map.insert(term.clone(), idf);
-        }
+        // Rank scored documents
+        let mut ranked: Vec<(f64, usize)> = chunk_scores
+            .into_iter()
+            .map(|(idx, score)| (score, idx))
+            .collect();
 
-        let mut ranked_chunks: Vec<(f64, &Chunk)> = Vec::new();
+        ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        for chunk in &tenant_chunks {
-            let chunk_words: Vec<&str> = chunk.content.split_whitespace().collect();
-            let total_words = chunk_words.len() as f64;
-            if total_words == 0.0 {
-                continue;
-            }
-
-            let chunk_lower = chunk.content.to_lowercase();
-            let mut total_score = 0.0;
-
-            for term in &query_terms {
-                let term_count = chunk_lower.matches(term.as_str()).count() as f64;
-                let tf = term_count / total_words;
-                let idf = idf_map.get(term).unwrap_or(&0.0);
-                total_score += tf * idf;
-            }
-
-            if total_score > 0.0 {
-                ranked_chunks.push((total_score, *chunk));
-            }
-        }
-
-        ranked_chunks.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-
+        let chunks = self.chunks.lock().map_err(|e| e.to_string())?;
         let mut results = Vec::new();
-        for (score, chunk) in ranked_chunks.iter().take(3) {
-            results.push(format!(
-                "[Score: {:.4}] (Source: {}) {}",
-                score, chunk.source, chunk.content
-            ));
+        for (score, chunk_idx) in ranked.into_iter().take(3) {
+            if let Some(chunk) = chunks.get(chunk_idx) {
+                results.push(format!(
+                    "[Score: {:.4}] (Source: {}) {}",
+                    score, chunk.source, chunk.content
+                ));
+            }
         }
 
         if self.observability_enabled {

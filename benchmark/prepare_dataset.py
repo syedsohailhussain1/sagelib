@@ -1,5 +1,4 @@
 import os
-import random
 import urllib.request
 
 BENCHMARK_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -13,7 +12,6 @@ SOURCES = [
 ]
 
 print("1. Downloading public baseline datasets...")
-downloaded_texts = []
 for filename, url in SOURCES:
     path = os.path.join(BENCHMARK_DIR, filename)
     if not os.path.exists(path):
@@ -24,16 +22,12 @@ for filename, url in SOURCES:
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 print(f"   Downloaded {filename} ({len(content)} chars)")
-                downloaded_texts.append(content)
         except Exception as e:
             print(f"   Download failed for {filename}: {e}")
     else:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            downloaded_texts.append(content)
-        print(f"   Found cached {filename} ({len(content)} chars)")
+        print(f"   Found cached {filename}")
 
-# Generate multi-tenant enterprise dataset
+# Multi-tenant enterprise dataset
 TENANTS = [
     "tenant_finance",
     "tenant_engineering",
@@ -42,7 +36,9 @@ TENANTS = [
     "tenant_cybersecurity",
     "tenant_operations",
     "tenant_marketing",
-    "tenant_human_resources"
+    "tenant_human_resources",
+    "tenant_compliance",
+    "tenant_procurement"
 ]
 
 TOPICS = {
@@ -93,11 +89,23 @@ TOPICS = {
         "Annual employee performance review calibration and promotion criteria.",
         "Remote work policy compliance and international tax residency guidelines.",
         "Employee health benefits and wellness program participation rates."
+    ],
+    "tenant_compliance": [
+        "Anti-Money Laundering AML transaction monitoring thresholds and suspicious activity reporting.",
+        "Corporate governance code of conduct policies and whistleblower protection standards.",
+        "Export control regulations and international sanctions screening procedures.",
+        "Environmental Social and Governance ESG carbon footprint reporting mandates."
+    ],
+    "tenant_procurement": [
+        "Enterprise software vendor master service agreement standard pricing tier negotiation.",
+        "Hardware procurement supply chain redundancy protocols and purchase order approvals.",
+        "Third-party vendor risk assessment matrix and security assurance audits.",
+        "Strategic vendor quarterly business review scorecards and performance metrics."
     ]
 }
 
-print("2. Synthesizing large multi-tenant corpus...")
-DOCS_PER_TENANT = 1250  # 8 tenants * 1250 docs = 10,000 documents
+print("2. Synthesizing large multi-tenant corpus (25,000 documents, 75,000 paragraphs)...")
+DOCS_PER_TENANT = 2500  # 10 tenants * 2500 docs = 25,000 documents
 total_generated = 0
 total_bytes = 0
 
