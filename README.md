@@ -34,26 +34,48 @@ Instead of deploying and managing heavyweight external vector databases for loca
 
 ---
 
-## Installation
+## Getting Started (Build from Source)
 
-### Node.js / TypeScript
+`sagelib` is currently available directly from source.
+
+### 1. Clone the Repository
 ```bash
-npm install sagelib
+git clone https://github.com/syedsohailhussain1/sagelib.git
+cd sagelib
 ```
 
-### Python
+### 2. For Node.js / TypeScript
 ```bash
-pip install sagelib
+# Install development dependencies
+npm install
+
+# Run automated test suite
+npm test
+
+# Run example demonstration
+node index.js
+```
+
+### 3. For Python
+```bash
+# Install maturin build tool
+pip install maturin
+
+# Build and test python bindings
+maturin develop --features python
+python test.py
 ```
 
 ---
 
 ## Quick Start
 
-### Node.js
+### Node.js Example
 
 ```javascript
-const { Pipeline, SemanticChunker, HybridRetriever } = require('sagelib');
+const path = require('node:path');
+// Import native binary from local build
+const { Pipeline, SemanticChunker, HybridRetriever } = require('./index.node');
 
 async function main() {
   // 1. Initialize pipeline
@@ -67,7 +89,8 @@ async function main() {
   pipeline.useRetriever(new HybridRetriever({ rrfK: 60 }));
 
   // 3. Ingest documents for a specific tenant
-  await pipeline.ingest('./fixtures/*.txt', 'tenant_123');
+  const fixturesPath = path.join(__dirname, 'fixtures', '*.txt').replace(/\\/g, '/');
+  await pipeline.ingest(fixturesPath, 'tenant_123');
 
   // 4. Query with strict tenant-level authorization
   const results = await pipeline.query('compliance risk', {
@@ -81,9 +104,10 @@ async function main() {
 main();
 ```
 
-### Python
+### Python Example
 
 ```python
+import os
 import sagelib
 
 # 1. Initialize pipeline
@@ -95,8 +119,9 @@ retriever = sagelib.HybridRetriever(60)
 pipeline.use_chunker(chunker)
 pipeline.use_retriever(retriever)
 
-# 3. Ingest documents
-pipeline.ingest("./fixtures/*.txt", "tenant_123")
+# 3. Ingest documents for a specific tenant
+fixtures_glob = os.path.join(os.path.dirname(__file__), "fixtures", "*.txt").replace("\\", "/")
+pipeline.ingest(fixtures_glob, "tenant_123")
 
 # 4. Query engine
 results = pipeline.query("compliance risk", "tenant_123")
@@ -150,6 +175,7 @@ python test.py
 
 ## Roadmap
 
+- [ ] **Package Distribution**: Official publishing to npm and PyPI registries.
 - [ ] **Persistent Storage**: Embedded DuckDB / SQLite disk persistence.
 - [ ] **Full BM25 Scoring**: Add document length normalization ($k_1$, $b$).
 - [ ] **Dense Vector Embeddings**: SIMD-accelerated cosine similarity and HNSW index.
