@@ -4,11 +4,13 @@
   "main": "index.js",
   "scripts": {
     "test": "node test.js",
+    "benchmark": "node benchmark/run_benchmark.js",
     "build": "node ./node_modules/@napi-rs/cli/dist/cli.js build --platform --release",
     "build:debug": "node ./node_modules/@napi-rs/cli/dist/cli.js build --platform"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.8.6"
+    "@napi-rs/cli": "^3.8.6",
+    "minisearch": "^7.2.0"
   },
   "napi": {
     "name": "sagelib"
